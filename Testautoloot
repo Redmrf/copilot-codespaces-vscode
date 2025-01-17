@@ -1,0 +1,93 @@
+import pyautogui
+import pytesseract
+import cv2
+import numpy as np
+import time
+import random
+
+# Configuração do Tesseract OCR
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Atualize este caminho conforme necessário
+
+# Área ao redor do jogador onde o loot é geralmente destacado (ajustar conforme necessário)
+SEARCH_REGION = (800, 400, 320, 240)  # (x, y, largura, altura)
+
+def capture_region(region):
+    """
+    Captura uma região específica da tela e converte para escala de cinza.
+    :param region: Tuple (x, y, width, height) definindo a área a capturar.
+    :return: Imagem da região capturada em escala de cinza.
+    """
+    screenshot = pyautogui.screenshot(region=region)
+    screenshot_np = np.array(screenshot)
+    return cv2.cvtColor(screenshot_np, cv2.COLOR_BGR2GRAY)
+
+def find_loot_text_positions(screenshot):
+    """
+    Encontra as posições do texto de loot destacado em uma imagem.
+    :param screenshot: Imagem da região capturada em escala de cinza.
+    :return: Lista de coordenadas (x, y) do centro dos textos detectados.
+    """
+    # Executar OCR na imagem
+    text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
+
+    positions = []
+    for i in range(len(text_data["text"])):
+        text = text_data["text"][i].strip()
+        confidence = int(text_data["conf"][i])
+
+        if text and confidence > 85:  # Confiança mínima alta para evitar falsos positivos
+            x = int(text_data["left"][i])
+            y = int(text_data["top"][i])
+            w = int(text_data["width"][i])
+            h = int(text_data["height"][i])
+
+            positions.append((x + w // 2, y + h // 2))
+
+    return positions
+
+def move_mouse_human_like(x, y):
+    """
+    Move o mouse para uma posição de forma que pareça humana.
+    :param x: Coordenada x.
+    :param y: Coordenada y.
+    """
+    duration = random.uniform(0.1, 0.3)  # Tempo aleatório de movimento
+    pyautogui.moveTo(x, y, duration=duration)
+
+def pick_up_loot(positions, region):
+    """
+    Simula cliques para pegar loot nas posições detectadas.
+    :param positions: Lista de coordenadas (x, y) relativas à região.
+    :param region: Tuple (x, y, width, height) definindo a área capturada.
+    """
+    region_x, region_y, _, _ = region
+    for pos in positions:
+        abs_x = region_x + pos[0]
+        abs_y = region_y + pos[1]
+        move_mouse_human_like(abs_x, abs_y)
+        pyautogui.click()
+        time.sleep(random.uniform(0.05, 0.15))  # Atraso aleatório entre cliques
+
+def main():
+    print("Iniciando script de coleta de loot. Pressione Ctrl+C para parar.")
+    try:
+        while True:
+            # Captura uma região específica ao redor do jogador
+            screenshot = capture_region(SEARCH_REGION)
+
+            # Encontrar as posições do texto de loot na imagem capturada
+            loot_positions = find_loot_text_positions(screenshot)
+
+            if loot_positions:
+                print(f"Loot detectado em: {loot_positions}")
+                pick_up_loot(loot_positions, SEARCH_REGION)
+            else:
+                print("Nenhum loot detectado.")
+
+            # Pequeno atraso antes da próxima captura
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        print("Script encerrado.")
+
+if __name__ == "__main__":
+    main()
